@@ -26,7 +26,7 @@ python src/server.py
 npx @modelcontextprotocol/inspector
 ```
 
-Open http://localhost:3000 and connect to `http://localhost:8000/mcp` using "Streamable HTTP" transport.
+Open http://localhost:3000 and connect to `http://localhost:8000/mcp` using "Streamable HTTP" transport (NOTE THE `/mcp`!).
 
 ## Deployment
 
@@ -40,7 +40,7 @@ Click the "Deploy to Render" button above.
 4. Connect your forked repository
 5. Render will automatically detect the `render.yaml` configuration
 
-Your server will be available at `https://your-service-name.onrender.com/mcp`
+Your server will be available at `https://your-service-name.onrender.com/mcp` (NOTE THE `/mcp`!)
 
 ## Customization
 
