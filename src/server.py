@@ -139,6 +139,11 @@ def setup_authentication():
                     logger.info(f"🔍 VivintOAuthProvider.authorize() called for client {client.client_id}")
                     logger.info(f"🔍 Redirect URI requested: {params.redirect_uri}")
                     
+                    # Check if new client authorization is disabled
+                    if config.oauth_disable_new_clients:
+                        logger.warning(f"🚫 Authorization blocked - new client access disabled: {client.client_id}")
+                        raise ValueError("New client authorization is currently disabled. The server is locked to existing authenticated clients only.")
+                    
                     # Check if user has an authenticated session
                     # For now, we'll check if environment credentials are available (proof of concept)
                     # In a full implementation, you'd check for a session cookie or token

@@ -148,7 +148,7 @@ Critical settings that must be configured:
 - `CLOUDFLARE_TUNNEL_URL` - If running behind Cloudflare tunnel
 
 Security settings:
-- `OAUTH_DISABLE_NEW_CLIENTS=true` - Disable new OAuth client registration (production security)
+- `OAUTH_DISABLE_NEW_CLIENTS=true` - Completely disable OAuth client registration AND authorization (production lockdown)
 - `RATE_LIMIT_ENABLED=true` - Enable login rate limiting (default: enabled)
 - `DEBUG_MODE=false` - Disable debug endpoints in production (default: false)
 
