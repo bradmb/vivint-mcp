@@ -17,6 +17,13 @@ from fastmcp import FastMCP
 # Import authentication
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 from fastmcp.server.auth.providers.in_memory import InMemoryOAuthProvider
+
+# Import our custom persistent OAuth provider
+try:
+    from .persistent_oauth_provider import PersistentOAuthProvider
+except ImportError:
+    # Handle case when run directly
+    from persistent_oauth_provider import PersistentOAuthProvider
 from mcp.shared.auth import OAuthClientInformationFull
 from mcp.server.auth.provider import AuthorizationParams
 from pydantic import AnyHttpUrl
@@ -102,9 +109,9 @@ def setup_authentication():
             else:
                 base_url = f"https://{config.host}:{config.port}"
             
-            # Create a custom OAuth provider that extends InMemoryOAuthProvider
-            # This ensures /authorize works with FastMCP's built-in routing
-            class VivintOAuthProvider(InMemoryOAuthProvider):
+            # Create a custom OAuth provider that extends PersistentOAuthProvider
+            # This ensures /authorize works with FastMCP's built-in routing and persists tokens
+            class VivintOAuthProvider(PersistentOAuthProvider):
                 def __init__(self, base_url: str):
                     super().__init__(base_url=base_url)
                     # Store pending authorization requests
