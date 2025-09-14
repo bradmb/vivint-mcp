@@ -307,6 +307,38 @@ if auth_provider and hasattr(auth_provider, 'pending_auth'):
             if not request_id or request_id not in auth_provider.pending_auth:
                 return HTMLResponse("Invalid or expired authorization request", status_code=400)
             
+            # Check if login is locked out
+            locked_out, seconds_remaining = is_login_locked_out()
+            if locked_out:
+                minutes_remaining = seconds_remaining // 60
+                seconds_part = seconds_remaining % 60
+                time_display = f"{minutes_remaining}m {seconds_part}s" if minutes_remaining > 0 else f"{seconds_part}s"
+                
+                lockout_html = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Login Temporarily Locked</title>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; max-width: 400px; margin: 50px auto; padding: 20px; }}
+                        .error {{ color: red; text-align: center; }}
+                        .lockout {{ background: #ffe6e6; border: 1px solid #ff9999; padding: 20px; border-radius: 8px; }}
+                        .timer {{ font-size: 24px; font-weight: bold; color: #d00; }}
+                    </style>
+                    <meta http-equiv="refresh" content="10">
+                </head>
+                <body>
+                    <div class="lockout">
+                        <h2>🔒 Login Temporarily Locked</h2>
+                        <p>Too many failed login attempts have been detected.</p>
+                        <p>Please wait <span class="timer">{time_display}</span> before trying again.</p>
+                        <p><small>This page will refresh automatically every 10 seconds.</small></p>
+                    </div>
+                </body>
+                </html>
+                """
+                return HTMLResponse(lockout_html, status_code=429)
+            
             # Create simple login form HTML
             html_content = f"""
             <!DOCTYPE html>
@@ -359,21 +391,67 @@ if auth_provider and hasattr(auth_provider, 'pending_auth'):
             if not request_id or request_id not in auth_provider.pending_auth:
                 return HTMLResponse("Invalid or expired authorization request", status_code=400)
             
-            # Validate credentials
-            if not auth_provider._validate_user_credentials(username, password):
-                # Return error page
-                html_content = f"""
+            # Check if login is locked out
+            locked_out, seconds_remaining = is_login_locked_out()
+            if locked_out:
+                minutes_remaining = seconds_remaining // 60
+                seconds_part = seconds_remaining % 60
+                time_display = f"{minutes_remaining}m {seconds_part}s" if minutes_remaining > 0 else f"{seconds_part}s"
+                
+                lockout_html = f"""
                 <!DOCTYPE html>
                 <html>
-                <head><title>Login Error</title><style>body{{font-family: Arial, sans-serif; max-width: 400px; margin: 50px auto; padding: 20px;}}</style></head>
+                <head><title>Login Locked</title><style>body{{font-family: Arial, sans-serif; max-width: 400px; margin: 50px auto; padding: 20px;}} .error{{color: red; text-align: center;}} .lockout{{background: #ffe6e6; border: 1px solid #ff9999; padding: 20px; border-radius: 8px;}} .timer{{font-size: 18px; font-weight: bold; color: #d00;}}</style></head>
                 <body>
-                    <h2>❌ Authentication Failed</h2>
-                    <p>Invalid Vivint credentials. Please check your username and password.</p>
-                    <a href="/oauth/login?request_id={request_id}">← Try Again</a>
+                    <div class="lockout">
+                        <h2>🔒 Login Locked</h2>
+                        <p>Authentication is temporarily locked due to failed attempts.</p>
+                        <p>Time remaining: <span class="timer">{time_display}</span></p>
+                    </div>
                 </body>
                 </html>
                 """
-                return HTMLResponse(html_content, status_code=401)
+                return HTMLResponse(lockout_html, status_code=429)
+            
+            # Validate credentials
+            if not auth_provider._validate_user_credentials(username, password):
+                # Record failed login attempt and check for lockout
+                lockout_triggered = record_failed_login()
+                
+                if lockout_triggered:
+                    # Return lockout page
+                    lockout_html = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head><title>Login Locked</title><style>body{{font-family: Arial, sans-serif; max-width: 400px; margin: 50px auto; padding: 20px;}} .error{{color: red; text-align: center;}} .lockout{{background: #ffe6e6; border: 1px solid #ff9999; padding: 20px; border-radius: 8px;}} .timer{{font-size: 18px; font-weight: bold; color: #d00;}}</style></head>
+                    <body>
+                        <div class="lockout">
+                            <h2>🔒 Login Locked</h2>
+                            <p>Too many failed login attempts. Authentication is now locked for {config.rate_limit_lockout_minutes} minutes.</p>
+                            <p><strong>This affects all users until the lockout expires.</strong></p>
+                        </div>
+                    </body>
+                    </html>
+                    """
+                    return HTMLResponse(lockout_html, status_code=429)
+                else:
+                    # Return regular error page
+                    html_content = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head><title>Login Error</title><style>body{{font-family: Arial, sans-serif; max-width: 400px; margin: 50px auto; padding: 20px;}}</style></head>
+                    <body>
+                        <h2>❌ Authentication Failed</h2>
+                        <p>Invalid Vivint credentials. Please check your username and password.</p>
+                        <p><small>⚠️ Warning: Failed attempts may result in temporary lockout.</small></p>
+                        <a href="/oauth/login?request_id={request_id}">← Try Again</a>
+                    </body>
+                    </html>
+                    """
+                    return HTMLResponse(html_content, status_code=401)
+            
+            # Login successful - reset rate limiting
+            reset_login_attempts()
             
             # Get stored authorization request
             auth_request = auth_provider.pending_auth.pop(request_id)
@@ -390,6 +468,56 @@ if auth_provider and hasattr(auth_provider, 'pending_auth'):
 
 # Global connection state
 _connection_initialized = False
+
+# Rate limiting state (in-memory)
+_login_lockout_until = 0  # Timestamp when lockout expires
+_failed_login_count = 0   # Counter for failed login attempts
+
+def is_login_locked_out() -> tuple[bool, int]:
+    """Check if login is currently locked out.
+    
+    Returns:
+        tuple: (is_locked_out, seconds_remaining)
+    """
+    if not config.rate_limit_enabled:
+        return False, 0
+    
+    current_time = time.time()
+    if current_time < _login_lockout_until:
+        seconds_remaining = int(_login_lockout_until - current_time)
+        return True, seconds_remaining
+    return False, 0
+
+def record_failed_login() -> bool:
+    """Record a failed login attempt and check if lockout should be triggered.
+    
+    Returns:
+        bool: True if lockout was triggered, False otherwise
+    """
+    global _failed_login_count, _login_lockout_until
+    
+    if not config.rate_limit_enabled:
+        return False
+    
+    _failed_login_count += 1
+    logger.warning(f"🚨 Failed login attempt #{_failed_login_count}")
+    
+    if _failed_login_count >= config.rate_limit_max_attempts:
+        lockout_duration = config.rate_limit_lockout_minutes * 60  # Convert to seconds
+        _login_lockout_until = time.time() + lockout_duration
+        logger.error(f"🔒 LOGIN LOCKOUT TRIGGERED - Locked for {config.rate_limit_lockout_minutes} minutes")
+        return True
+    
+    return False
+
+def reset_login_attempts():
+    """Reset failed login counter after successful login."""
+    global _failed_login_count, _login_lockout_until
+    
+    if _failed_login_count > 0:
+        logger.info("✅ Login successful - resetting failed attempt counter")
+        _failed_login_count = 0
+        _login_lockout_until = 0
 
 async def ensure_vivint_connection():
     """Ensure Vivint connection is established."""
@@ -748,6 +876,14 @@ if config.auth_type == "oauth":
         """Debug endpoint to inspect registered OAuth clients and redirect URIs."""
         try:
             from starlette.responses import JSONResponse
+            
+            # Check if debug mode is enabled
+            if not config.debug_mode:
+                return JSONResponse(
+                    {"error": "Debug endpoints are disabled. Set DEBUG_MODE=true in .env to enable."},
+                    status_code=403
+                )
+            
             if not auth_provider or not hasattr(auth_provider, 'clients'):
                 return JSONResponse({"error": "No OAuth provider configured"}, status_code=500)
             

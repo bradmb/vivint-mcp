@@ -40,6 +40,11 @@ class VivintConfig:
         self.auth_type = os.getenv("AUTH_TYPE", "jwt").lower()
         self.auth_secret = os.getenv("AUTH_SECRET")  # For simple bearer token
         
+        # Rate limiting settings
+        self.rate_limit_enabled = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
+        self.rate_limit_lockout_minutes = int(os.getenv("RATE_LIMIT_LOCKOUT_MINUTES", 5))
+        self.rate_limit_max_attempts = int(os.getenv("RATE_LIMIT_MAX_ATTEMPTS", 1))
+        
         # JWT settings
         self.jwt_public_key = os.getenv("JWT_PUBLIC_KEY")  # For JWT verification
         self.jwt_private_key = os.getenv("JWT_PRIVATE_KEY")  # For JWT signing (optional)
