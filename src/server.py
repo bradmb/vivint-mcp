@@ -9,6 +9,7 @@ import sys
 import asyncio
 import logging
 import secrets
+import time
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 from fastmcp import FastMCP
@@ -103,17 +104,84 @@ def setup_authentication():
             
             # Create a custom OAuth provider that extends InMemoryOAuthProvider
             # This ensures /authorize works with FastMCP's built-in routing
-            class SimpleOAuthProvider(InMemoryOAuthProvider):
+            class VivintOAuthProvider(InMemoryOAuthProvider):
+                def __init__(self, base_url: str):
+                    super().__init__(base_url=base_url)
+                    # Store pending authorization requests
+                    self.pending_auth = {}
+                    # Store authenticated sessions (in production, use a proper session store)
+                    self.authenticated_sessions = {}
+                
                 async def authorize(self, client: OAuthClientInformationFull, params: AuthorizationParams) -> str:
-                    """Override to provide simple authorization without complex Vivint auth."""
-                    logger.info(f"🔍 SimpleOAuthProvider.authorize() called for client {client.client_id}")
+                    """FastMCP-compatible OAuth authorization with user login."""
+                    logger.info(f"🔍 VivintOAuthProvider.authorize() called for client {client.client_id}")
                     logger.info(f"🔍 Redirect URI requested: {params.redirect_uri}")
-                    logger.info(f"🔍 Client redirect URIs: {[str(uri) for uri in client.redirect_uris]}")
                     
-                    # For now, just issue an authorization code directly
-                    # In a real implementation, you'd verify user credentials here
-                    import secrets
-                    import time
+                    # Check if user has an authenticated session
+                    # For now, we'll check if environment credentials are available (proof of concept)
+                    # In a full implementation, you'd check for a session cookie or token
+                    
+                    session_id = None  # In real implementation, extract from request cookies
+                    
+                    if session_id and session_id in self.authenticated_sessions:
+                        # User is already authenticated, issue authorization code
+                        logger.info("✅ User session authenticated, issuing authorization code")
+                        return await self._issue_authorization_code(client, params)
+                    
+                    # For testing purposes, you can uncomment this to skip login form:
+                    # if self._validate_environment_credentials():
+                    #     logger.info("✅ Environment credentials validated, issuing authorization code")
+                    #     return await self._issue_authorization_code(client, params)
+                    
+                    # User not authenticated - redirect to login page
+                    logger.info("❌ User not authenticated, redirecting to login page")
+                    
+                    # Generate a temporary auth request ID
+                    auth_request_id = secrets.token_urlsafe(32)
+                    
+                    # Store the authorization request parameters
+                    self.pending_auth[auth_request_id] = {
+                        'client': client,
+                        'params': params,
+                        'created_at': time.time()
+                    }
+                    
+                    # FastMCP expects this method to return a redirect URL
+                    # We redirect to our custom login page with the auth request ID
+                    login_url = f"{base_url}/oauth/login?request_id={auth_request_id}"
+                    logger.info(f"🔗 Redirecting to login page: {login_url}")
+                    return login_url
+                
+                def _validate_environment_credentials(self) -> bool:
+                    """Validate that required Vivint credentials are present in environment."""
+                    try:
+                        # Check if credentials exist in config
+                        if not (config.username and 
+                               config.password and 
+                               len(config.username.strip()) > 0 and 
+                               len(config.password.strip()) > 0):
+                            logger.debug("❌ Vivint credentials not found in environment")
+                            return False
+                        
+                        logger.debug("✅ Vivint credentials found in environment")
+                        return True
+                        
+                    except Exception as e:
+                        logger.error(f"Error validating credentials: {e}")
+                        return False
+                
+                def _validate_user_credentials(self, username: str, password: str) -> bool:
+                    """Validate user-provided credentials against environment."""
+                    try:
+                        # Validate against environment credentials
+                        return (username == config.username and password == config.password)
+                        
+                    except Exception as e:
+                        logger.error(f"Error validating user credentials: {e}")
+                        return False
+                
+                async def _issue_authorization_code(self, client: OAuthClientInformationFull, params: AuthorizationParams) -> str:
+                    """Issue an authorization code after successful authentication."""
                     from mcp.server.auth.provider import AuthorizationCode, construct_redirect_uri
                     
                     # Generate authorization code
@@ -141,7 +209,7 @@ def setup_authentication():
                         state=params.state
                     )
             
-            oauth_provider = SimpleOAuthProvider(base_url=base_url)
+            oauth_provider = VivintOAuthProvider(base_url=base_url)
             
             # Register the configured client if credentials exist
             if config.oauth_client_id and config.oauth_client_secret:
@@ -217,6 +285,99 @@ auth_provider = setup_authentication()
 
 # Initialize MCP server with authentication
 mcp = FastMCP("Vivint Security System MCP Server", auth=auth_provider)
+
+# Add custom OAuth login routes if using OAuth provider
+if auth_provider and hasattr(auth_provider, 'pending_auth'):
+    from starlette.responses import HTMLResponse, RedirectResponse
+    
+    @mcp.custom_route("/oauth/login", methods=["GET", "POST"])
+    async def oauth_login_handler(request):
+        """Handle OAuth login form display and submission."""
+        
+        if request.method == "GET":
+            # Show login form
+            request_id = request.query_params.get("request_id")
+            if not request_id or request_id not in auth_provider.pending_auth:
+                return HTMLResponse("Invalid or expired authorization request", status_code=400)
+            
+            # Create simple login form HTML
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Vivint MCP Server - Login</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; max-width: 400px; margin: 50px auto; padding: 20px; }}
+                    .form-group {{ margin-bottom: 15px; }}
+                    label {{ display: block; margin-bottom: 5px; font-weight: bold; }}
+                    input[type="text"], input[type="password"] {{ width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }}
+                    button {{ background-color: #007cba; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%; }}
+                    button:hover {{ background-color: #005a87; }}
+                    .error {{ color: red; margin-top: 10px; }}
+                    .header {{ text-align: center; margin-bottom: 30px; }}
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h2>🏠 Vivint MCP Server</h2>
+                    <p>Please enter your Vivint credentials to authorize access</p>
+                </div>
+                <form method="post" action="/oauth/login">
+                    <input type="hidden" name="request_id" value="{request_id}">
+                    <div class="form-group">
+                        <label for="username">Vivint Username:</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Vivint Password:</label>
+                        <input type="password" id="password" name="password" required>
+                    </div>
+                    <button type="submit">Login & Authorize</button>
+                </form>
+                <p style="font-size: 12px; color: #666; margin-top: 20px; text-align: center;">
+                    Your credentials are used only to verify your Vivint account access.
+                </p>
+            </body>
+            </html>
+            """
+            return HTMLResponse(html_content)
+        
+        elif request.method == "POST":
+            # Handle login form submission
+            form_data = await request.form()
+            request_id = form_data.get("request_id")
+            username = form_data.get("username")
+            password = form_data.get("password")
+            
+            if not request_id or request_id not in auth_provider.pending_auth:
+                return HTMLResponse("Invalid or expired authorization request", status_code=400)
+            
+            # Validate credentials
+            if not auth_provider._validate_user_credentials(username, password):
+                # Return error page
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head><title>Login Error</title><style>body{{font-family: Arial, sans-serif; max-width: 400px; margin: 50px auto; padding: 20px;}}</style></head>
+                <body>
+                    <h2>❌ Authentication Failed</h2>
+                    <p>Invalid Vivint credentials. Please check your username and password.</p>
+                    <a href="/oauth/login?request_id={request_id}">← Try Again</a>
+                </body>
+                </html>
+                """
+                return HTMLResponse(html_content, status_code=401)
+            
+            # Get stored authorization request
+            auth_request = auth_provider.pending_auth.pop(request_id)
+            client = auth_request['client']
+            params = auth_request['params']
+            
+            # Issue authorization code
+            redirect_url = await auth_provider._issue_authorization_code(client, params)
+            
+            # Redirect to client with authorization code
+            return RedirectResponse(redirect_url, status_code=302)
 
 # Session middleware will be added when we create custom routes below
 
