@@ -33,7 +33,6 @@ class VivintConfig:
         
         # Session management
         self.session_refresh_interval = int(os.getenv("SESSION_REFRESH_INTERVAL", 900))  # 15 minutes
-        self.token_refresh_interval = int(os.getenv("TOKEN_REFRESH_INTERVAL", 18000))   # 5 hours
         
         # Authentication settings
         self.auth_enabled = os.getenv("AUTH_ENABLED", "true").lower() == "true"
