@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if show_consent %}Authorize Access{% else %}Vivint Login{% endif %} - {{ client_name }}</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .auth-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 450px;
+            width: 100%;
+            overflow: hidden;
+        }
+        
+        .auth-header {
+            background: #2d3748;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .auth-header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        
+        .auth-header p {
+            opacity: 0.8;
+            font-size: 14px;
+        }
+        
+        .auth-body {
+            padding: 30px;
+        }
+        
+        .client-info {
+            background: #f7fafc;
+            border-left: 4px solid #4299e1;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 0 6px 6px 0;
+        }
+        
+        .client-info h3 {
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+        
+        .client-info p {
+            color: #718096;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #2d3748;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #4299e1;
+        }
+        
+        .error-message {
+            background: #fed7d7;
+            border: 1px solid #feb2b2;
+            color: #c53030;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .success-message {
+            background: #c6f6d5;
+            border: 1px solid #9ae6b4;
+            color: #276749;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .consent-section {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+        
+        .consent-section h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+        }
+        
+        .scope-list {
+            list-style: none;
+        }
+        
+        .scope-list li {
+            background: white;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border-left: 3px solid #4299e1;
+        }
+        
+        .scope-list li:last-child {
+            margin-bottom: 0;
+        }
+        
+        .auth-button {
+            width: 100%;
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .auth-button:hover {
+            background: #3182ce;
+        }
+        
+        .auth-button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+        
+        .cancel-link {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: #718096;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        
+        .cancel-link:hover {
+            color: #4a5568;
+        }
+        
+        .mfa-notice {
+            background: #bee3f8;
+            border: 1px solid #90cdf4;
+            color: #2a69ac;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .security-notice {
+            background: #fef5e7;
+            border: 1px solid #f6d55c;
+            color: #744210;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            text-align: center;
+        }
+        
+        .vivint-logo {
+            width: 40px;
+            height: 40px;
+            background: #4299e1;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-header">
+            <div class="vivint-logo">V</div>
+            {% if show_consent %}
+            <h1>Authorize Access</h1>
+            <p>{{ client_name }} is requesting access to your Vivint account</p>
+            {% else %}
+            <h1>Vivint Login</h1>
+            <p>Authenticate with your Vivint security system credentials</p>
+            {% endif %}
+        </div>
+        
+        <div class="auth-body">
+            <div class="client-info">
+                <h3>{{ client_name }}</h3>
+                <p>Client ID: {{ client_id }}</p>
+                {% if redirect_uri %}
+                <p>Redirect: {{ redirect_uri }}</p>
+                {% endif %}
+            </div>
+            
+            {% if error %}
+            <div class="error-message">
+                <strong>Error:</strong> {{ error }}
+            </div>
+            {% endif %}
+            
+            <form method="post" action="/authorize">
+                {% if show_consent %}
+                <!-- Consent/Authorization Form -->
+                <div class="success-message">
+                    ✅ Successfully authenticated as <strong>{{ username }}</strong>
+                </div>
+                
+                {% if scopes %}
+                <div class="consent-section">
+                    <h3>Requested Permissions</h3>
+                    <ul class="scope-list">
+                        {% for scope in scopes %}
+                        <li>
+                            {% if scope == "claudeai" %}
+                            🤖 <strong>Claude AI Integration</strong> - Allow Claude Desktop to access your Vivint system
+                            {% elif scope == "vivint:read" %}
+                            📖 <strong>Read Access</strong> - View security system status and device information
+                            {% else %}
+                            🔧 <strong>{{ scope }}</strong> - Custom scope access
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                <div class="security-notice">
+                    🔒 This will allow {{ client_name }} to access your Vivint security system data. You can revoke this access at any time.
+                </div>
+                
+                <input type="hidden" name="action" value="consent">
+                <button type="submit" class="auth-button">Authorize Access</button>
+                
+                {% else %}
+                <!-- Login Form -->
+                {% if show_mfa %}
+                <div class="mfa-notice">
+                    🔐 Two-factor authentication required. Please check your Vivint app or email for a 6-digit verification code.
+                </div>
+                {% endif %}
+                
+                <div class="form-group">
+                    <label for="username">Vivint Username</label>
+                    <input type="email" id="username" name="username" value="{{ username }}" required 
+                           placeholder="your.email@example.com" {% if show_mfa %}readonly{% endif %}>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Vivint Password</label>
+                    <input type="password" id="password" name="password" value="{{ password }}" required 
+                           placeholder="Your Vivint password" {% if show_mfa %}readonly{% endif %}>
+                </div>
+                
+                {% if show_mfa %}
+                <div class="form-group">
+                    <label for="mfa_code">Verification Code</label>
+                    <input type="text" id="mfa_code" name="mfa_code" required 
+                           placeholder="123456" maxlength="6" pattern="[0-9]{6}"
+                           style="text-align: center; font-size: 18px; letter-spacing: 0.2em;">
+                </div>
+                {% endif %}
+                
+                <div class="security-notice">
+                    🛡️ Your credentials are used only for authentication and are not stored. This ensures only you can authorize access to your Vivint system.
+                </div>
+                
+                <input type="hidden" name="action" value="login">
+                <button type="submit" class="auth-button">
+                    {% if show_mfa %}Verify Code{% else %}Sign In{% endif %}
+                </button>
+                {% endif %}
+            </form>
+            
+            <a href="{{ redirect_uri }}?error=access_denied&state={{ request.query_params.get('state', '') }}" class="cancel-link">
+                Cancel
+            </a>
+        </div>
+    </div>
+    
+    <script>
+        // Auto-focus on first empty input
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('input:not([readonly]):not([type="hidden"])');
+            for (let input of inputs) {
+                if (!input.value) {
+                    input.focus();
+                    break;
+                }
+            }
+        });
+        
+        // Format MFA code input
+        const mfaInput = document.getElementById('mfa_code');
+        if (mfaInput) {
+            mfaInput.addEventListener('input', function(e) {
+                // Remove non-digits
+                this.value = this.value.replace(/[^0-9]/g, '');
+                
+                // Auto-submit when 6 digits entered
+                if (this.value.length === 6) {
+                    this.form.submit();
+                }
+            });
+        }
+    </script>
+</body>
+</html>
