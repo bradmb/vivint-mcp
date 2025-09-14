@@ -119,6 +119,21 @@ def setup_authentication():
                     # Store authenticated sessions (in production, use a proper session store)
                     self.authenticated_sessions = {}
                 
+                async def register_client(self, client_info: OAuthClientInformationFull) -> None:
+                    """Register a client with optional restriction for new clients."""
+                    # Check if new client registration is disabled
+                    if config.oauth_disable_new_clients:
+                        # Check if this is an existing client
+                        if client_info.client_id not in self.clients:
+                            logger.warning(f"🚫 New client registration blocked: {client_info.client_id}")
+                            raise ValueError("New client registration is currently disabled. Only existing clients can authenticate.")
+                        else:
+                            logger.info(f"✅ Existing client allowed: {client_info.client_id}")
+                    
+                    # Proceed with registration (existing clients can re-register)
+                    await super().register_client(client_info)
+                    logger.info(f"📝 Client registered: {client_info.client_id}")
+                
                 async def authorize(self, client: OAuthClientInformationFull, params: AuthorizationParams) -> str:
                     """FastMCP-compatible OAuth authorization with user login."""
                     logger.info(f"🔍 VivintOAuthProvider.authorize() called for client {client.client_id}")

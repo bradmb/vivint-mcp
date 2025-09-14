@@ -61,6 +61,9 @@ class VivintConfig:
             "https://claude.ai/api/mcp/auth_callback,http://localhost:3000/callback,http://localhost:8080/callback"
         ).split(",")
         
+        # OAuth client registration control
+        self.oauth_disable_new_clients = os.getenv("OAUTH_DISABLE_NEW_CLIENTS", "false").lower() == "true"
+        
         # Cloudflare tunnel settings
         self.cloudflare_tunnel_url = os.getenv("CLOUDFLARE_TUNNEL_URL")  # e.g., https://your-tunnel.trycloudflare.com
         

@@ -147,6 +147,11 @@ Critical settings that must be configured:
 - `OAUTH_REDIRECT_URIS` - Comma-separated list of allowed redirect URIs
 - `CLOUDFLARE_TUNNEL_URL` - If running behind Cloudflare tunnel
 
+Security settings:
+- `OAUTH_DISABLE_NEW_CLIENTS=true` - Disable new OAuth client registration (production security)
+- `RATE_LIMIT_ENABLED=true` - Enable login rate limiting (default: enabled)
+- `DEBUG_MODE=false` - Disable debug endpoints in production (default: false)
+
 ## Common Issues and Solutions
 
 1. **"jinja2 must be installed"** → Use `template_free_oauth_provider.py`
