@@ -953,11 +953,20 @@ if __name__ == "__main__":
         logger.warning("⚠️ Authentication disabled - server is PUBLICLY accessible!")
     
     try:
-        mcp.run(
-            transport="http",
-            host=host,
-            port=port
-        )
+        # Use configurable transport from environment
+        transport_type = config.transport
+        logger.info(f"🚀 Starting MCP server with {transport_type.upper()} transport on {host}:{port}")
+
+        if transport_type == "stdio":
+            # STDIO transport doesn't use host/port
+            mcp.run(transport="stdio")
+        else:
+            # HTTP and SSE transports use host/port
+            mcp.run(
+                transport=transport_type,
+                host=host,
+                port=port
+            )
     except KeyboardInterrupt:
         logger.info("Received interrupt signal, shutting down...")
     except Exception as e:

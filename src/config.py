@@ -26,6 +26,9 @@ class VivintConfig:
         self.port = int(os.getenv("PORT", 8000))
         self.host = os.getenv("HOST", "0.0.0.0")
         self.environment = os.getenv("ENVIRONMENT", "development")
+
+        # Transport configuration
+        self.transport = os.getenv("MCP_TRANSPORT", "http").lower()
         
         # Debug settings
         self.debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
@@ -106,6 +109,10 @@ class VivintConfig:
         
         if self.jwt_algorithm not in ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512"]:
             self.jwt_algorithm = "HS256"
+
+        # Validate transport type
+        if self.transport not in ["http", "sse", "stdio"]:
+            raise ValueError("MCP_TRANSPORT must be one of 'http', 'sse', or 'stdio'")
     
     @property
     def is_production(self) -> bool:
