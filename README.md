@@ -4,7 +4,7 @@ A FastMCP server that exposes read-only access to your Vivint home security syst
 
 Important: This integration uses an unofficial, reverse‑engineered API (vivintpy). Vivint has no official public API. Use at your own risk and review your Terms of Service.
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/InteractionCo/mcp-server-template)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/bradmb/vivint-mcp)
 
 ## Features
 
