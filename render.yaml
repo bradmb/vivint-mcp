@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: fastmcp-server
+    name: vivint-mcp-server
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: python src/server.py
@@ -9,3 +9,19 @@ services:
     envVars:
       - key: ENVIRONMENT
         value: production
+      - key: AUTH_ENABLED
+        value: true
+      - key: AUTH_TYPE
+        value: jwt
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: LOG_LEVEL
+        value: WARNING
+      - key: DEBUG_MODE
+        value: false
+      - key: RATE_LIMIT_ENABLED
+        value: true
+      - key: RATE_LIMIT_MAX_ATTEMPTS
+        value: 3
+      - key: RATE_LIMIT_LOCKOUT_MINUTES
+        value: 15
