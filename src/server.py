@@ -97,7 +97,37 @@ def setup_authentication():
                 raise ValueError(f"Unsupported JWT algorithm: {config.jwt_algorithm}")
                 
             return auth
-            
+
+        elif config.auth_type == "api_token":
+            # Simple API token authentication
+            from fastmcp.server.auth import StaticTokenVerifier
+
+            # StaticTokenVerifier expects a dict mapping token -> metadata
+            tokens = {
+                config.api_token: {
+                    "client_id": "api_client",
+                    "scopes": ["execute"]
+                }
+            }
+            auth = StaticTokenVerifier(tokens=tokens)
+            logger.info("✅ API token authentication configured")
+            return auth
+
+        elif config.auth_type == "bearer":
+            # Bearer token authentication using AUTH_SECRET
+            from fastmcp.server.auth import StaticTokenVerifier
+
+            # StaticTokenVerifier expects a dict mapping token -> metadata
+            tokens = {
+                config.auth_secret: {
+                    "client_id": "bearer_client",
+                    "scopes": ["execute"]
+                }
+            }
+            auth = StaticTokenVerifier(tokens=tokens)
+            logger.info("✅ Bearer token authentication configured")
+            return auth
+
         elif config.auth_type == "oauth":
             # Set up OAuth provider using FastMCP's built-in InMemoryOAuthProvider
             # Use Cloudflare tunnel URL if configured, otherwise use localhost

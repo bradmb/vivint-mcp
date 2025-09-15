@@ -41,6 +41,7 @@ class VivintConfig:
         self.auth_enabled = os.getenv("AUTH_ENABLED", "true").lower() == "true"
         self.auth_type = os.getenv("AUTH_TYPE", "jwt").lower()
         self.auth_secret = os.getenv("AUTH_SECRET")  # For simple bearer token
+        self.api_token = os.getenv("API_TOKEN")  # For API token authentication
         
         # Rate limiting settings
         self.rate_limit_enabled = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
@@ -100,12 +101,14 @@ class VivintConfig:
                     raise ValueError("JWT_PUBLIC_KEY is required for RSA JWT algorithms (RS256/384/512)")
             elif self.auth_type == "bearer" and not self.auth_secret:
                 raise ValueError("AUTH_SECRET is required for bearer token authentication")
+            elif self.auth_type == "api_token" and not self.api_token:
+                raise ValueError("API_TOKEN is required for API token authentication")
             elif self.auth_type == "oauth":
                 if not self.oauth_client_id or not self.oauth_client_secret:
                     raise ValueError("OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET are required for OAuth authentication")
         
-        if self.auth_type not in ["jwt", "bearer", "oauth"]:
-            raise ValueError("AUTH_TYPE must be one of 'jwt', 'bearer', or 'oauth'")
+        if self.auth_type not in ["jwt", "bearer", "oauth", "api_token"]:
+            raise ValueError("AUTH_TYPE must be one of 'jwt', 'bearer', 'oauth', or 'api_token'")
         
         if self.jwt_algorithm not in ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512"]:
             self.jwt_algorithm = "HS256"
