@@ -1,361 +1,333 @@
 # Vivint Security System MCP Server
 
-A [FastMCP](https://github.com/jlowin/fastmcp) server that provides read-only access to your Vivint home security system through the Model Context Protocol (MCP).
+A FastMCP server that exposes read-only access to your Vivint home security system over the Model Context Protocol (MCP) via Streamable HTTP at the /mcp endpoint.
 
-⚠️ **Important**: This integration uses an unofficial reverse-engineered API (`vivintpy`) as Vivint does not provide an official public API. Use at your own discretion.
+Important: This integration uses an unofficial, reverse‑engineered API (vivintpy). Vivint has no official public API. Use at your own risk and review your Terms of Service.
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/InteractionCo/mcp-server-template)
 
 ## Features
 
-This MCP server provides 8 tools for accessing your Vivint security system:
+Eight read-only tools are exposed to MCP clients:
 
-- **`get_system_status`** - Overall security system state and armed status
-- **`get_all_devices`** - Complete device inventory with health status
-- **`get_security_sensors`** - Motion, door/window, smoke, and other security sensors
-- **`get_cameras`** - Camera status and recording capabilities
-- **`get_locks`** - Smart lock states and battery levels
-- **`get_thermostats`** - Climate control data and settings
-- **`get_recent_events`** - Recent system activity and events
-- **`get_device_health`** - Device connectivity and battery status
+- get_system_status — Overall system armed state and metadata
+- get_all_devices — Complete device inventory
+- get_security_sensors — Motion/door/window/smoke/CO/flood sensors
+- get_cameras — Camera status and capabilities
+- get_locks — Smart lock states and battery level
+- get_thermostats — Climate data and setpoints
+- get_recent_events — Recent activity snapshots
+- get_device_health — Battery/online/attention summaries
+
+Endpoint base path: /mcp (clients must include this path).
 
 ## Prerequisites
 
-- **Vivint Account**: Active Vivint home security system
-- **Dedicated User**: Recommended to create a separate Vivint user for API access
-- **2FA Support**: Full support for accounts with 2FA/MFA enabled (see 2FA Setup section)
-- **Python 3.13+**: Required for FastMCP compatibility
+- Python 3.13+
+- A Vivint account (recommend a dedicated, least‑privilege user)
+- Node.js (for MCP Inspector via npx)
+- Optional: Cloudflared (to expose your local server)
+- macOS, Linux, or Windows. Commands below use macOS/zsh patterns.
 
-## Local Development
+## Quick start (local)
 
-### Setup
-
-1. Fork and clone the repository:
+1) Clone and enter the project
 
 ```bash
-git clone <your-repo-url>
+cd /Users/brad/GitHub
+# Or your workspace directory
+# git clone <your-remote> mcp-server-template
 cd mcp-server-template
 ```
 
-2. Create and activate conda environment:
+2) Create an environment and install dependencies
 
+Option A: venv
 ```bash
-# Create the environment (only needed first time)
-conda create -n mcp-server python=3.13
-
-# Activate the environment
-conda activate mcp-server
-
-# Install dependencies
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-3. Configure your Vivint credentials and authentication:
+Option B: conda
+```bash
+conda create -n mcp-server python=3.13 -y
+conda activate mcp-server
+pip install -r requirements.txt
+```
+
+3) Configure environment
 
 ```bash
 cp .env.example .env
-# Edit .env file with your credentials:
-# VIVINT_USERNAME=your_vivint_username
-# VIVINT_PASSWORD=your_vivint_password
+# Edit .env and set at minimum:
+# VIVINT_USERNAME=your_email@example.com
+# VIVINT_PASSWORD=your_password
 ```
 
-4. **🔐 Setup Authentication** (Secure your server):
+4) Enable authentication (recommended)
 
-Generate a secure authentication key:
+Generate a strong HMAC secret and add it to .env:
 ```bash
 python src/generate_token.py --type secret
+# Copy the printed AUTH_SECRET=... into your .env
+# Ensure AUTH_ENABLED=true, AUTH_TYPE=jwt, JWT_ALGORITHM=HS256
 ```
 
-This will output something like:
-```
-AUTH_SECRET=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2
-```
-
-Add this to your `.env` file to secure your server.
-
-### Test
-
-1. **Generate an access token**:
+Generate a short‑lived JWT for local testing:
 ```bash
-python src/generate_token.py --type token --hours 24
+python src/generate_token.py --type token --hours 24 --subject local-dev
 ```
 
-This outputs a JWT token you'll need for authentication.
+5) Start the server
 
-2. **Start the server**:
 ```bash
 python src/server.py
+# Endpoint: http://localhost:8000/mcp
 ```
 
-The server will show:
-- 🔐 **Authentication enabled** - requires valid JWT tokens
-- ⚠️ **Authentication disabled** - publicly accessible (if AUTH_ENABLED=false)
+6) Test with MCP Inspector
 
-3. **Test with MCP Inspector**:
 ```bash
 npx @modelcontextprotocol/inspector
 ```
+Then connect with:
+- Transport: Streamable HTTP
+- URL: http://localhost:8000/mcp
+- If AUTH_ENABLED=true: add the header Authorization: Bearer <your_jwt>
 
-4. **Connect with authentication**:
-   - Open http://localhost:3000
-   - Connect to `http://localhost:8000/mcp` using "Streamable HTTP" transport
-   - **Important**: Include your JWT token in the Authorization header:
-     ```
-     Authorization: Bearer your-jwt-token-here
-     ```
+## Example .env
 
-5. **Test the tools**:
-   - `get_system_status()` - Check if your system is armed
-   - `get_all_devices()` - See all your connected devices
-   - `get_device_health()` - Check battery levels and connectivity
-
-### Debug Mode
-
-For troubleshooting, enable debug mode:
+Copy/paste and edit values as needed. Do not commit this file.
 
 ```bash
-DEBUG_MODE=true LOG_LEVEL=DEBUG python src/server.py
+# Environment
+ENVIRONMENT=development
+PORT=8000
+# HOST optional; defaults internally (container vs. strict local)
+# HOST=*******
+
+# Logging / debug
+DEBUG_MODE=false
+LOG_LEVEL=INFO
+
+# Vivint credentials (required)
+VIVINT_USERNAME=your_email@example.com
+VIVINT_PASSWORD=your_password
+# If you have multiple systems, set a specific one
+# VIVINT_SYSTEM_ID=
+
+# Session management (seconds)
+SESSION_REFRESH_INTERVAL=900
+TOKEN_REFRESH_INTERVAL=18000
+
+# Authentication (recommended in all environments)
+AUTH_ENABLED=true
+AUTH_TYPE=jwt
+JWT_ALGORITHM=HS256
+AUTH_SECRET=replace-with-strong-secret
+JWT_ISSUER=vivint-mcp-server
+JWT_AUDIENCE=vivint-mcp-client
+TOKEN_EXPIRY_HOURS=24
+
+# 2FA/MFA
+# VIVINT_MFA_CODE=123456
+VIVINT_REFRESH_TOKEN_FILE=.vivint_tokens.json
+VIVINT_MFA_AUTO_WAIT=false
+
+# OAuth (optional)
+# OAUTH_CLIENT_ID=
+# OAUTH_CLIENT_SECRET=
+OAUTH_REDIRECT_URIS=https://claude.ai/api/mcp/auth_callback,http://localhost:3000/callback,http://localhost:8080/callback
+OAUTH_DISABLE_NEW_CLIENTS=false
+# CLOUDFLARE_TUNNEL_URL=https://your-tunnel.trycloudflare.com
+
+# Rate limiting for login endpoints
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_LOCKOUT_MINUTES=5
+RATE_LIMIT_MAX_ATTEMPTS=1
 ```
 
-## 🔐 2FA/MFA Setup
+Notes:
+- The server binds to HOST and PORT (defaults provided). For containers, bind‑all is recommended; for strict local, use a loopback address. The default HOST in code is redacted (*******).
+- All URLs must include the /mcp base path.
 
-If your Vivint account has Two-Factor Authentication (2FA) enabled, the server now fully supports it with automatic token persistence.
+## Authentication options
 
-### First-Time Setup with 2FA
+JWT (HMAC, HS256) — recommended for single‑user/local
+- Generate secret: python src/generate_token.py --type secret
+- Configure .env: AUTH_ENABLED=true, AUTH_TYPE=jwt, JWT_ALGORITHM=HS256, AUTH_SECRET=...
+- Create token: python src/generate_token.py --type token --hours 24 --subject local-dev
+- Verify token: python src/generate_token.py --verify "<token>"
+- Use with Inspector: Authorization: Bearer <token>
 
-**Option 1: Interactive Setup (Recommended)**
+JWT (RSA, RS256) — multi‑client
+- Generate keys: python src/generate_token.py --type keypair
+- Configure .env: JWT_PRIVATE_KEY, JWT_PUBLIC_KEY, JWT_ALGORITHM=RS256
+- Generate tokens with the private key (same script) and verify with the public key.
+
+OAuth 2.0 — optional
+- Generate a client: python src/generate_oauth_credentials.py
+- Ensure OAUTH_REDIRECT_URIS includes https://claude.ai/api/mcp/auth_callback (for Claude) and any local callbacks.
+- Start the server and complete the flow using the server’s OAuth endpoints. In production, consider setting OAUTH_DISABLE_NEW_CLIENTS=true.
+
+Disable auth (development only)
+```bash
+# In .env
+AUTH_ENABLED=false
+```
+Warning: Do not disable authentication if your server is reachable from the internet.
+
+## 2FA/MFA setup and token persistence
+
+Interactive (recommended)
 ```bash
 python setup_mfa.py
 ```
-This script will:
-- Guide you through the MFA process step-by-step
-- Prompt for your 2FA code when needed (no expiry issues)
-- Save tokens automatically for future use
-- Test the connection to verify everything works
+What it does:
+- Prompts for a fresh 6‑digit code when required
+- Saves refresh tokens to VIVINT_REFRESH_TOKEN_FILE (default: .vivint_tokens.json)
+- Validates the connection
 
-**Option 2: Environment Variable Method**
-1. **Get your 2FA code**:
-   - Check your Vivint app for a 6-digit code
-   - Or check your email if you use email-based 2FA
-
-2. **Set the MFA code temporarily**:
-   ```bash
-   export VIVINT_MFA_CODE=123456  # Your 6-digit code
-   ```
-
-3. **Start the server**:
-   ```bash
-   python src/server.py
-   ```
-
-**After successful setup**:
-- Refresh tokens are saved to `.vivint_tokens.json`
-- Future server restarts will use the saved tokens (no MFA required)
-- Tokens are valid for ~6 hours and auto-refresh
-
-### Configuration Options
-
-Add these to your `.env` file for 2FA customization:
-
-```bash
-# Required: Your 2FA code (only for initial setup)
-VIVINT_MFA_CODE=123456
-
-# Optional: Custom token storage location
-VIVINT_REFRESH_TOKEN_FILE=.vivint_tokens.json
-
-# Optional: Wait for MFA input (for interactive setups)
-VIVINT_MFA_AUTO_WAIT=false
-```
-
-### Token Management
-
-The server automatically:
-- ✅ **Saves refresh tokens** after successful MFA verification
-- ✅ **Reuses tokens** on subsequent startups (no MFA needed)
-- ✅ **Auto-refreshes** tokens before they expire
-- ✅ **Handles expiration** gracefully by requesting new MFA
-- ✅ **Per-user tokens** - different users get separate token files
-
-### Troubleshooting 2FA
-
-**"MFA code required" error**:
+Non‑interactive (one‑off)
 ```bash
 export VIVINT_MFA_CODE=123456
 python src/server.py
 ```
 
-**Tokens expired**:
-- Server will automatically request a new MFA code
-- Check logs for specific instructions
-
-**Test your setup**:
+Validation
 ```bash
-python test_mfa.py  # Test MFA flow and token persistence
+python test_mfa.py
 ```
+Token file security: treat .vivint_tokens.json as a secret and restrict permissions (chmod 600).
 
-## 🔐 Authentication & Security
+## Running and debugging
 
-### Authentication Methods
-
-The server supports JWT (JSON Web Token) authentication with two algorithms:
-
-1. **HMAC (HS256) - Recommended for single-user setups**:
-   - Uses a shared secret key
-   - Simpler setup, perfect for personal use
-   - Generate with: `python src/generate_token.py --type secret`
-
-2. **RSA (RS256) - For multi-user or enterprise setups**:
-   - Uses public/private key pairs  
-   - More secure, supports multiple clients
-   - Generate with: `python src/generate_token.py --type keypair`
-
-### Token Management
-
-**Generate tokens**:
+Start:
 ```bash
-# 24-hour token (default)
-python src/generate_token.py --type token
-
-# Custom expiry
-python src/generate_token.py --type token --hours 168  # 1 week
-
-# Custom user
-python src/generate_token.py --type token --subject "john-doe"
+python src/server.py
 ```
-
-**Verify tokens**:
+Explicit host/port:
 ```bash
-python src/generate_token.py --verify "your-jwt-token-here"
+HOST=********* PORT=8000 python src/server.py
 ```
-
-### Client Authentication
-
-**For MCP Inspector**:
-Add the Authorization header when connecting:
-```
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-**For programmatic clients**:
-```python
-import httpx
-
-headers = {
-    "Authorization": f"Bearer {your_jwt_token}",
-    "Content-Type": "application/json"
-}
-
-response = httpx.post("http://localhost:8000/mcp", headers=headers, json=request)
-```
-
-### Disabling Authentication
-
-For development or trusted network environments:
+Verbose logs:
 ```bash
-# In .env file
-AUTH_ENABLED=false
+DEBUG_MODE=true LOG_LEVEL=DEBUG python src/server.py
+```
+Debug endpoint (when available): /debug/oauth requires DEBUG_MODE=true.
+
+## Testing with MCP Inspector
+
+- Launch: npx @modelcontextprotocol/inspector
+- Transport: Streamable HTTP
+- URL: http://localhost:8000/mcp
+- If auth enabled: add Authorization: Bearer <token>
+- Try tools: get_system_status, get_all_devices, get_device_health
+
+## Cloudflare tunnel (optional)
+
+If you want to test over the internet without opening ports:
+
+Helper scripts in repo:
+```bash
+./start_tunnel.sh       # Starts a Quick Tunnel, prints public URL and saves it to .mcp_public_url
+./tunnel_status.sh      # Shows status and tests the endpoint
+./stop_tunnel.sh        # Stops the tunnel and cleans up
+```
+OAuth redirect URIs can be updated automatically:
+```bash
+python update_oauth_uris.py --auto-tunnel
+```
+Manual alternative:
+```bash
+cloudflared tunnel --url http://localhost:8000
+# Your MCP endpoint is: https://<random>.trycloudflare.com/mcp
 ```
 
-⚠️ **Warning**: Only disable authentication if your server is not accessible from the internet.
+## Deploying to Render
 
-## Deployment
+Use the button above or set up a Web Service that runs:
+- Build: pip install -r requirements.txt
+- Start: python src/server.py
 
-### Render Deployment
+Environment variables (minimum):
+- ENVIRONMENT=production
+- AUTH_ENABLED=true
+- AUTH_TYPE=jwt (or oauth)
+- For JWT HS: AUTH_SECRET=<strong-secret>, JWT_ALGORITHM=HS256
+- For JWT RS: JWT_PRIVATE_KEY, JWT_PUBLIC_KEY, JWT_ALGORITHM=RS256
+- VIVINT_USERNAME, VIVINT_PASSWORD
+- Optional: VIVINT_SYSTEM_ID, LOG_LEVEL=WARNING/ERROR
 
-1. **One-Click Deploy**: Click the "Deploy to Render" button above, or:
+Your endpoint will be: https://<service>.onrender.com/mcp
 
-2. **Manual Deployment**:
-   - Fork this repository
-   - Connect your GitHub account to Render
-   - Create a new Web Service on Render
-   - Connect your forked repository
-   - Render will automatically detect the `render.yaml` configuration
+## Tool reference
 
-3. **Environment Variables**: In your Render service settings, add:
-   - `VIVINT_USERNAME`: Your Vivint username
-   - `VIVINT_PASSWORD`: Your Vivint password
-   - `AUTH_SECRET`: Generated secret key (from `generate_token.py`)
-   - `AUTH_ENABLED`: Set to `true` for production security
-   - `ENVIRONMENT`: Set to `production`
-   - `LOG_LEVEL`: Set to `WARNING` or `ERROR` for production
+- get_system_status() → { armed, arm_state, is_disarmed, is_armed_stay, is_armed_away, system_id, panel_id, panel_name, timestamp, ... }
+- get_all_devices() → [ { id, name, type, panel_id, system_id, state, is_online, battery_level, last_update_time, ... } ]
+- get_security_sensors() → [ { id, name, sensor_type, triggered, bypassed, zone_id, ... } ]
+- get_cameras() → [ { id, name, resolution, night_vision, motion_detection, rtsp_available, ... } ]
+- get_locks() → [ { id, name, locked, tamper_status, battery_level, last_operated_at, ... } ]
+- get_thermostats() → [ { id, name, current_temperature, target_temperature, heat_setpoint, cool_setpoint, mode, ... } ]
+- get_recent_events(hours=24) → [ { id, type, description, timestamp, device_id, device_name } ]
+- get_device_health() → { total_devices, online_devices, offline_devices, low_battery_devices, devices_needing_attention, ... }
 
-Your **authenticated** server will be available at `https://your-service-name.onrender.com/mcp` (NOTE THE `/mcp`!)
-
-### Security Considerations
-
-- **🔐 Always enable authentication in production** (`AUTH_ENABLED=true`)
-- **Never commit your `.env` file** - it contains sensitive credentials and auth secrets
-- Use a dedicated Vivint user account for API access
-- Rotate authentication secrets regularly in production
-- Consider additional network security (VPN, IP restrictions)
-- Monitor authentication logs for suspicious activity
-- Consider the legal implications of using an unofficial API
-- Monitor for any changes to the `vivintpy` library
+Return fields are best‑effort and depend on your account/devices; errors are returned as { error, timestamp }.
 
 ## Architecture
 
-### Core Components
+Core files
+- src/server.py — FastMCP app, auth setup (JWT/OAuth), tool registration, HTTP transport on /mcp
+- src/vivint_client.py — vivintpy wrapper, session lifecycle, MFA handling
+- src/token_manager.py — secure token persistence and validation
+- src/config.py — environment variable parsing and validation
+- setup_mfa.py, test_mfa.py — interactive MFA onboarding and validation
+- start_tunnel.sh, tunnel_status.sh, stop_tunnel.sh — Cloudflared helpers
+- render.yaml — Render deployment config
 
-- **`src/server.py`**: Main FastMCP server with 8 Vivint tools
-- **`src/vivint_client.py`**: Vivint API client wrapper with session management
-- **`src/config.py`**: Configuration and environment variable management
-- **`.env.example`**: Template for environment configuration
-
-### Session Management
-
-The client automatically handles:
-- Initial authentication with Vivint API
-- 15-minute keepalive cycles to maintain session
-- Automatic re-authentication when tokens expire (6-hour limit)
-- Connection pooling and retry logic
-- Graceful error handling and recovery
-
-## Limitations & Disclaimers
-
-⚠️ **Unofficial API**: This integration relies on reverse-engineered API access through the `vivintpy` library. Vivint does not provide an official public API.
-
-⚠️ **Service Stability**: Vivint may change their internal APIs at any time, potentially breaking this integration.
-
-⚠️ **Terms of Service**: Using unofficial API methods may violate Vivint's Terms of Service. Use responsibly and at your own risk.
-
-⚠️ **Read-Only Access**: This server only provides read access to your Vivint system data. It cannot control devices or change settings.
+Session notes
+- Sessions are refreshed periodically; tokens auto‑refresh ~5–6 hours
+- Device and state shapes come from vivintpy and can change upstream
 
 ## Troubleshooting
 
-### Common Issues
+Authentication
+- “AUTH_SECRET is required” → Add AUTH_SECRET for HS* or JWT_PUBLIC_KEY for RS*
+- “MFA required” → export VIVINT_MFA_CODE or run setup_mfa.py
+- OAuth redirect mismatch → Ensure the exact URL is in OAUTH_REDIRECT_URIS, restart server
 
-1. **Authentication Failed**:
-   - Verify username/password in `.env` file
-   - Ensure account doesn't have 2FA enabled
-   - Try creating a dedicated user account
+Connectivity
+- Inspector can’t connect → Server running? Port correct? URL includes /mcp?
+- Render 502 → Ensure HOST/PORT are correct for container; ENVIRONMENT=production
 
-2. **Connection Timeouts**:
-   - Check internet connectivity
-   - Enable debug mode to see detailed logs
-   - Verify Vivint services are operational
+Devices
+- No devices → Confirm account/system access; set VIVINT_SYSTEM_ID when multiple systems exist
 
-3. **No Devices Found**:
-   - Confirm your account has access to the system
-   - Check if you have multiple systems (may need `VIVINT_SYSTEM_ID`)
-   - Review system permissions
+Rate limits
+- Login locked → Adjust RATE_LIMIT_* or wait for lockout to expire
 
-### Getting Help
+Debugging
+- DEBUG_MODE=true LOG_LEVEL=DEBUG for verbose logs
+- /debug/oauth (if enabled) inspects OAuth configuration
 
-- Check the logs with `DEBUG_MODE=true`
-- Review the `vivintpy` library documentation
-- Consider contacting Vivint for official API access
+## Security
 
-## Contributing
+- Keep AUTH_ENABLED=true in production
+- Rotate AUTH_SECRET/keys regularly
+- Use a dedicated Vivint user
+- Do not commit .env or token files; treat .vivint_tokens.json as a secret (chmod 600)
+- Keep DEBUG_MODE=false in production
+- Be mindful that vivintpy is unofficial and may break without notice
 
-Contributions are welcome! Please:
-- Test changes thoroughly with your Vivint system
-- Update documentation for any new features
-- Follow existing code patterns and error handling
-- Be mindful of rate limiting and API usage
+## Limitations & disclaimers
+
+- Unofficial API usage via vivintpy (no guarantees; subject to breakage)
+- Read‑only access only; no device control
+- May violate provider terms — proceed responsibly
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT — see LICENSE.
 
-**Disclaimer**: This project is not affiliated with or endorsed by Vivint. Use at your own risk.
+This project is not affiliated with or endorsed by Vivint.
